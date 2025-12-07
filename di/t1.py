@@ -1,3 +1,9 @@
+"""
+ABOUT THIS TEST:
+- A sync function(foo) has two dependencies(bar & foobar).
+- A sync dependency(foobar) has a sync dependency(bar).
+"""
+
 from di import *
 from typing import Annotated
 
