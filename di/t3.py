@@ -7,8 +7,8 @@ ABOUT THIS TEST:
 from di import *
 from typing import Annotated
 
-#async def bar():
-def bar():
+async def bar():
+# def bar():
     return 100
 def bar2(a: int = 200):
     return a

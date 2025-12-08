@@ -14,11 +14,6 @@ class Depends:
         return self.func.__name__
     def __repr__(self):
         return "Depends"
-# ASSUMPTIONS & FUNCTIONALITY:
-# 1. dependencies can take no parameters other than other dependencies
-# 2. user won't self-call a dependency
-# 3. both the top-level function(the argument of the initial call to generic_di) and dependencies are synchronous callables(functions or any object with __call__ implemented)
-# 4. recursive dependencies are allowed
 def generic_di(func, is_dep=False):
     func_sig = signature(func)
     f_params = dict([(k, v) for k, v in func_sig.parameters.items()])
@@ -50,7 +45,7 @@ def generic_di(func, is_dep=False):
             if dependency_dict.get('coroutinefunction') == None:
                 dependency_dict['coroutinefunction'] = []
             dependency_dict['coroutinefunction'].append((dep_name, dep))
-        elif isasyncgenfunction(dep) or iscoroutinefunction(dep) or isgeneratorfunction(dep) or ('__enter__' in dep.__dir__() and '__exit__' in dep.__dir__()) or ('__aenter__' in dep.__dir__() and '__aexit__' in dep.__dir__()):
+        elif isasyncgenfunction(dep) or isgeneratorfunction(dep) or ('__enter__' in dep.__dir__() and '__exit__' in dep.__dir__()) or ('__aenter__' in dep.__dir__() and '__aexit__' in dep.__dir__()):
             raise Exception("not yet implemented")
         elif '__call__' in dir(dep):
             if dependency_dict.get('sync_callable') == None:
@@ -109,9 +104,9 @@ def generic_di(func, is_dep=False):
                     for k, v in f_args.arguments.items():
                         if dep_paramdict.get(k) != None:
                             dep_argdict[k] = v
-                    dep_map[dep_name] = dep(**dep_argdict)
                     async def task():
                         dep_map[dep_name] = await dep(**dep_argdict)
+                        return
                     lasttask = el.create_task(task())
                 el.run_until_complete(lasttask)
                 # raise Exception("not yet implemented")
