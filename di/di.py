@@ -6,6 +6,7 @@ from inspect import (
     iscoroutinefunction,
     Signature
 )
+import asyncio
 class Depends:
     def __init__(self, foo):
         self.func = foo
@@ -101,7 +102,19 @@ def generic_di(func, is_dep=False):
                             dep_argdict[k] = v
                     dep_map[dep_name] = dep(**dep_argdict)
             if dependency_dict.get('coroutinefunction') != None:
-                raise Exception("not yet implemented")
+                el = asyncio.new_event_loop()
+                for dep_name, dep in dependency_dict['coroutinefunction']:
+                    dep_paramdict = dict([(k, v) for k, v in signature(dep).parameters.items()])
+                    dep_argdict = dict()
+                    for k, v in f_args.arguments.items():
+                        if dep_paramdict.get(k) != None:
+                            dep_argdict[k] = v
+                    dep_map[dep_name] = dep(**dep_argdict)
+                    async def task():
+                        dep_map[dep_name] = await dep(**dep_argdict)
+                    lasttask = el.create_task(task())
+                el.run_until_complete(lasttask)
+                # raise Exception("not yet implemented")
             func_kwargs = dict()
             for k, v in f_args.arguments.items():
                 if signature(func).parameters.get(k) != None:
