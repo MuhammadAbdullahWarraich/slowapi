@@ -7,6 +7,7 @@ from inspect import (
     Signature
 )
 import asyncio
+from contextlib import contextmanager, ExitStack
 class Depends:
     def __init__(self, foo):
         self.func = foo
@@ -15,6 +16,10 @@ class Depends:
     def __repr__(self):
         return "Depends"
 def generic_di(func, is_dep=False):
+    try:
+        func_name = func.__name__
+    except Exception as e:
+        func_name = "unnamed"
     func_sig = signature(func)
     f_params = dict([(k, v) for k, v in func_sig.parameters.items()])
     dependencies = []
@@ -45,6 +50,10 @@ def generic_di(func, is_dep=False):
             if dependency_dict.get('coroutinefunction') == None:
                 dependency_dict['coroutinefunction'] = []
             dependency_dict['coroutinefunction'].append((dep_name, dep))
+        elif isgeneratorfunction(dep):
+            if dependency_dict.get('generatorfunction') == None:
+                dependency_dict['generatorfunction'] = []
+            dependency_dict['generatorfunction'].append((dep_name, dep))
         elif isasyncgenfunction(dep) or isgeneratorfunction(dep) or ('__enter__' in dep.__dir__() and '__exit__' in dep.__dir__()) or ('__aenter__' in dep.__dir__() and '__aexit__' in dep.__dir__()):
             raise Exception("not yet implemented")
         elif '__call__' in dir(dep):
@@ -59,6 +68,7 @@ def generic_di(func, is_dep=False):
     )
     if iscoroutinefunction(func):
         async def f(*args, **kwargs):
+            nonlocal func_name# for debugger
             f_args = f_sig.bind(*args, **kwargs)
             dep_map = dict()
             if dependency_dict.get('sync_callable') != None:
@@ -83,9 +93,12 @@ def generic_di(func, is_dep=False):
                     func_kwargs[k] = v
             for k, v in dep_map.items():
                 assert func_kwargs.get(k) == None
+            if dependency_dict.get('generatorfunction') != None:
+                raise Exception("not yet implemented")
             return await func(**func_kwargs, **dep_map)
-    else:
+    elif is_dep and (isgeneratorfunction(func) or dependency_dict.get('generatorfunction') != None):
         def f(*args, **kwargs):
+            nonlocal func_name# for debugger
             f_args = f_sig.bind(*args, **kwargs)
             dep_map = dict()
             if dependency_dict.get('sync_callable') != None:
@@ -116,6 +129,83 @@ def generic_di(func, is_dep=False):
                     func_kwargs[k] = v
             for k, v in dep_map.items():
                 assert func_kwargs.get(k) == None
-            return func(**func_kwargs, **dep_map)
+            if dependency_dict.get('generatorfunction') != None:
+                with ExitStack() as st:
+                    for dep_name, dep in dependency_dict['generatorfunction']:
+                        dep_paramdict = dict([(k, v) for k, v in signature(dep).parameters.items()])
+                        dep_argdict = dict()
+                        for k, v in f_args.arguments.items():
+                            if dep_paramdict.get(k) != None:
+                                dep_argdict[k] = v
+                        dep_map[dep_name] = st.enter_context(contextmanager(dep)(**dep_argdict))
+                    if isgeneratorfunction(func):
+                        with contextmanager(func)(**func_kwargs, **dep_map) as ret_val:
+                            yield ret_val
+                        return
+                    yield func(**func_kwargs, **dep_map)
+                    return
+            elif isgeneratorfunction(func):
+                with contextmanager(func)(**func_kwargs, **dep_map) as ret_val:
+                    yield ret_val
+            else:
+                assert False, "Unreachable"
+    else:
+        def f(*args, **kwargs):
+            nonlocal func_name# for debugger
+            nonlocal is_dep
+            f_args = f_sig.bind(*args, **kwargs)
+            dep_map = dict()
+            if dependency_dict.get('sync_callable') != None:
+                for dep_name, dep in dependency_dict['sync_callable']:
+                    dep_paramdict = dict([(k, v) for k, v in signature(dep).parameters.items()])
+                    dep_argdict = dict()
+                    for k, v in f_args.arguments.items():
+                        if dep_paramdict.get(k) != None:
+                            dep_argdict[k] = v
+                    dep_map[dep_name] = dep(**dep_argdict)
+            if dependency_dict.get('coroutinefunction') != None:
+                el = asyncio.new_event_loop()
+                for dep_name, dep in dependency_dict['coroutinefunction']:
+                    dep_paramdict = dict([(k, v) for k, v in signature(dep).parameters.items()])
+                    dep_argdict = dict()
+                    for k, v in f_args.arguments.items():
+                        if dep_paramdict.get(k) != None:
+                            dep_argdict[k] = v
+                    async def task():
+                        dep_map[dep_name] = await dep(**dep_argdict)
+                        return
+                    lasttask = el.create_task(task())
+                el.run_until_complete(lasttask)
+            func_kwargs = dict()
+            for k, v in f_args.arguments.items():
+                if signature(func).parameters.get(k) != None:
+                    func_kwargs[k] = v
+            for k, v in dep_map.items():
+                assert func_kwargs.get(k) == None
+            if dependency_dict.get('generatorfunction') != None:
+                with ExitStack() as st:
+                    for dep_name, dep in dependency_dict['generatorfunction']:
+                        dep_paramdict = dict([(k, v) for k, v in signature(dep).parameters.items()])
+                        dep_argdict = dict()
+                        for k, v in f_args.arguments.items():
+                            if dep_paramdict.get(k) != None:
+                                dep_argdict[k] = v
+                        dep_map[dep_name] = st.enter_context(contextmanager(dep)(**dep_argdict))
+                    if isgeneratorfunction(func):
+                        with contextmanager(func)(**func_kwargs, **dep_map) as ret_val:
+                            return ret_val
+                    return func(**func_kwargs, **dep_map)
+            elif isgeneratorfunction(func):
+                with contextmanager(func)(**func_kwargs, **dep_map) as ret_val:
+                    return ret_val
+            else:
+                return func(**func_kwargs, **dep_map)
     f.__signature__ = f_sig
     return f
+# def get_dep_argdict(f_args, dep_name, dep):
+#     dep_paramdict = dict([(k, v) for k, v in signature(dep).parameters.items()])
+#     dep_argdict = dict()
+#     for k, v in f_args.arguments.items():
+#         if dep_paramdict.get(k) != None:
+#             dep_argdict[k] = v
+#     return dep_argdict

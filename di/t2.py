@@ -9,6 +9,7 @@ from typing import Annotated
 from asyncio import run as asyncio_run
 
 def bar(w: int):
+    print(f"w is: {w}")
     return 100
 async def bar2():
     return 200
@@ -22,4 +23,4 @@ async def foo(x, y: Annotated[int, Depends(bar)], z: Annotated[str, Depends(foob
     print(f"the value of z is: {z}")
 
 print(signature(foo))
-asyncio_run(foo("harry_bhai", 100))
+asyncio_run(foo("harry_bhai", 12))
