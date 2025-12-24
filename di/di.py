@@ -7,7 +7,7 @@ from inspect import (
     Signature
 )
 import asyncio
-from contextlib import contextmanager, ExitStack
+from contextlib import contextmanager, ExitStack, asynccontextmanager, AsyncExitStack
 class Depends:
     def __init__(self, foo):
         self.func = foo
@@ -54,7 +54,11 @@ def generic_di(func, is_dep=False):
             if dependency_dict.get('generatorfunction') == None:
                 dependency_dict['generatorfunction'] = []
             dependency_dict['generatorfunction'].append((dep_name, dep))
-        elif isasyncgenfunction(dep) or isgeneratorfunction(dep) or ('__enter__' in dep.__dir__() and '__exit__' in dep.__dir__()) or ('__aenter__' in dep.__dir__() and '__aexit__' in dep.__dir__()):
+        elif isasyncgenfunction(dep):
+            if dependency_dict.get('asyncgenfunction') == None:
+                dependency_dict['asyncgenfunction'] = []
+            dependency_dict['asyncgenfunction'].append((dep_name, dep))
+        elif ('__enter__' in dep.__dir__() and '__exit__' in dep.__dir__()) or ('__aenter__' in dep.__dir__() and '__aexit__' in dep.__dir__()):
             raise Exception("not yet implemented")
         elif '__call__' in dir(dep):
             if dependency_dict.get('sync_callable') == None:
@@ -66,7 +70,7 @@ def generic_di(func, is_dep=False):
         parameters = [v for _, v in f_params.items()],
         return_annotation = func_sig._return_annotation
     )
-    if iscoroutinefunction(func):
+    if is_dep and (isasyncgenfunction(func) or dependency_dict.get('asyncgenfunction') != None):
         async def f(*args, **kwargs):
             nonlocal func_name# for debugger
             f_args = f_sig.bind(*args, **kwargs)
@@ -95,7 +99,73 @@ def generic_di(func, is_dep=False):
                 assert func_kwargs.get(k) == None
             if dependency_dict.get('generatorfunction') != None:
                 raise Exception("not yet implemented")
-            return await func(**func_kwargs, **dep_map)
+            if dependency_dict.get('asyncgenfunction') != None:
+                async with AsyncExitStack() as st:
+                    for dep_name, dep in dependency_dict['asyncgenfunction']:
+                        dep_paramdict = dict([(k, v) for k, v in signature(dep).parameters.items()])
+                        dep_argdict = dict()
+                        for k, v in f_args.arguments.items():
+                            if dep_paramdict.get(k) != None:
+                                dep_argdict[k] = v
+                        dep_map[dep_name] = await st.enter_async_context(asynccontextmanager(dep)(**dep_argdict))
+                    if isasyncgenfunction(func):
+                        async with asynccontextmanager(func)(**func_kwargs, **dep_map) as ret_val:
+                            yield ret_val
+                        return
+                    yield await func(**func_kwargs, **dep_map)
+                    return
+            elif isasyncgenfunction(func):
+                async with asynccontextmanager(func)(**func_kwargs, **dep_map) as ret_val:
+                    yield ret_val
+            else:
+                assert False, "Unreachable"
+    elif iscoroutinefunction(func):
+        async def f(*args, **kwargs):
+            nonlocal func_name# for debugger
+            f_args = f_sig.bind(*args, **kwargs)
+            dep_map = dict()
+            if dependency_dict.get('sync_callable') != None:
+                for dep_name, dep in dependency_dict['sync_callable']:
+                    dep_paramdict = dict([(k, v) for k, v in signature(dep).parameters.items()])
+                    dep_argdict = dict()
+                    for k, v in f_args.arguments.items():
+                        if dep_paramdict.get(k) != None:
+                            dep_argdict[k] = v
+                    dep_map[dep_name] = dep(**dep_argdict)
+            if dependency_dict.get('coroutinefunction') != None:
+                for dep_name, dep in dependency_dict['coroutinefunction']:
+                    dep_paramdict = dict([(k, v) for k, v in signature(dep).parameters.items()])
+                    dep_argdict = dict()
+                    for k, v in f_args.arguments.items():
+                        if dep_paramdict.get(k) != None:
+                            dep_argdict[k] = v
+                    dep_map[dep_name] = await dep(**dep_argdict)
+            func_kwargs = dict()
+            for k, v in f_args.arguments.items():
+                if signature(func).parameters.get(k) != None:
+                    func_kwargs[k] = v
+            for k, v in dep_map.items():
+                assert func_kwargs.get(k) == None
+            if dependency_dict.get('generatorfunction') != None:
+                raise Exception("not yet implemented")
+            if dependency_dict.get('asyncgenfunction') != None:
+                async with AsyncExitStack() as st:
+                    for dep_name, dep in dependency_dict['asyncgenfunction']:
+                        dep_paramdict = dict([(k, v) for k, v in signature(dep).parameters.items()])
+                        dep_argdict = dict()
+                        for k, v in f_args.arguments.items():
+                            if dep_paramdict.get(k) != None:
+                                dep_argdict[k] = v
+                        dep_map[dep_name] = await st.enter_async_context(asynccontextmanager(dep)(**dep_argdict))
+                    if isasyncgenfunction(func):
+                        async with asynccontextmanager(func)(**func_kwargs, **dep_map) as ret_val:
+                            return ret_val
+                    return await func(**func_kwargs, **dep_map)
+            elif isasyncgenfunction(func):
+                async with asynccontextmanager(func)(**func_kwargs, **dep_map) as ret_val:
+                    return ret_val
+            else:
+                return await func(**func_kwargs, **dep_map)
     elif is_dep and (isgeneratorfunction(func) or dependency_dict.get('generatorfunction') != None):
         def f(*args, **kwargs):
             nonlocal func_name# for debugger
