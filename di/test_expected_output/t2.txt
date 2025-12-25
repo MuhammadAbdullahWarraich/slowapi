@@ -1,0 +1,6 @@
+(x, w: int)
+w is: 12
+w is: 12
+the value of x is: harry_bhai
+the value of y is: 100
+the value of z is: foobar<bar:100, bar2:200>

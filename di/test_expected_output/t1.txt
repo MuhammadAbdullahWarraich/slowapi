@@ -1,0 +1,4 @@
+(x)
+the value of x is: harry_bhai
+the value of y is: 100
+the value of z is: foobar<bar:100>

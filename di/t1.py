@@ -18,4 +18,11 @@ def foo(x, y: Annotated[int, Depends(bar)], z: Annotated[str, Depends(foobar)]):
     print(f"the value of y is: {y}")
     print(f"the value of z is: {z}")
 
-foo("harry_bhai")
+
+def runnee():
+    print(signature(foo))
+    foo("harry_bhai")
+
+def test(mode):
+    from test_utils import run_test
+    return run_test(mode, "t1", runnee)

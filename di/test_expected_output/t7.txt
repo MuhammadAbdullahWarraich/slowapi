@@ -1,0 +1,25 @@
+(x, a: int = 200)
+UselessContextManager.__init__ got called
+UselessContextManager.__enter__ got called
+I am in with statement before yielding
+UselessContextManager.__init__ got called
+UselessContextManager.__aenter__ got called
+I am in async with statement before yielding
+UselessContextManager.__init__ got called
+UselessContextManager.__enter__ got called
+I am in with statement before yielding
+UselessContextManager.__init__ got called
+UselessContextManager.__aenter__ got called
+I am in async with statement before yielding
+the value of w is: -100
+the value of x is: harry_bhai
+the value of y is: 100
+the value of z is: foobar<bar:100, bar2:200>
+I am in async with statement after yielding
+UselessContextManager.__aexit__ got called
+I am in with statement after yielding
+UselessContextManager.__exit__ got called
+I am in async with statement after yielding
+UselessContextManager.__aexit__ got called
+I am in with statement after yielding
+UselessContextManager.__exit__ got called

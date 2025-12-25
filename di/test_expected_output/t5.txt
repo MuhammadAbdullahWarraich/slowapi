@@ -1,0 +1,7 @@
+the value of x is: harry_bhai
+the value of y is: 1212
+the value of z is: foobar<bar:100, bar2:1212>
+sig of foo: OrderedDict({'x': <Parameter "x">, 'wow': <Parameter "wow: int">})
+sig of foobar: OrderedDict({'a': <Parameter "a: Annotated[int, Depends]">, 'b': <Parameter "b: Annotated[int, Depends]">})
+sig of bar: OrderedDict()
+sig of bar2: OrderedDict({'wow': <Parameter "wow: int">})

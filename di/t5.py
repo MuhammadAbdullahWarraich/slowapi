@@ -24,8 +24,14 @@ def foo(x, y: Annotated[int, Depends(bar2)], z: Annotated[str, Depends(foobar)])
     print(f"the value of y is: {y}")
     print(f"the value of z is: {z}")
 
-foo("harry_bhai", 1212)
-print("sig of foo:", signature(foo).parameters)
-print("sig of foobar:", signature(foobar).parameters)
-print("sig of bar:", signature(bar).parameters)
-print("sig of bar2:", signature(bar2).parameters)
+
+def runnee():
+    foo("harry_bhai", 1212)
+    print("sig of foo:", signature(foo).parameters)
+    print("sig of foobar:", signature(foobar).parameters)
+    print("sig of bar:", signature(bar).parameters)
+    print("sig of bar2:", signature(bar2).parameters)
+
+def test(mode):
+    from test_utils import run_test
+    return run_test(mode, "t5", runnee)

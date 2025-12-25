@@ -22,5 +22,11 @@ async def foo(x, y: Annotated[int, Depends(bar)], z: Annotated[str, Depends(foob
     print(f"the value of y is: {y}")
     print(f"the value of z is: {z}")
 
-print(signature(foo))
-asyncio_run(foo("harry_bhai", 12))
+
+def runnee():
+    print(signature(foo))
+    asyncio_run(foo("harry_bhai", 12))
+
+def test(mode):
+    from test_utils import run_test
+    return run_test(mode, "t2", runnee)
